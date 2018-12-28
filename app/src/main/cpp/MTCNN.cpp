@@ -69,8 +69,8 @@ MTCNN::MTCNN(const std::vector<std::string>& param_files, const std::vector<std:
 	Rnet.load_model(bin_files[1].data());
 	Onet.load_param(param_files[2].data());
 	Onet.load_model(bin_files[2].data());
-	this->minsize = minsize;
-	this->scale = scale;
+//	this->minsize = minsize;
+//	this->scale = scale;
 }
 
 
@@ -465,7 +465,7 @@ void MTCNN::detectMaxFace(cv::Mat& img_, std::vector<Bbox>& finalBbox)
 	secondBbox_.clear();
 	thirdBbox_.clear();
 
-	cv::resize(img_,re_img,cv::Size(img_.cols * scale + 0.5,img_.rows * scale + 0.5),(0, 0), (0, 0), cv::INTER_LINEAR);
+	cv::resize(img_,re_img,cv::Size(img_.cols * scale + 0.5,img_.rows * scale + 0.5));
 	img = ncnn::Mat::from_pixels(re_img.data, ncnn::Mat::PIXEL_BGR2RGB, re_img.cols, re_img.rows);
 	img_w = img.w;
 	img_h = img.h;

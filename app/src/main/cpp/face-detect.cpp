@@ -7,32 +7,38 @@
 #include <MTCNN.h>
 #include <android/log.h>
 #include <android/bitmap.h>
+#include <dtracker.h>
+
+using namespace std;
 
 #define TAG "Mtcnn Demo "
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG,TAG,__VA_ARGS__)
 
-jint outJava(JNIEnv *pEnv, jobject pJobject, vector<FaceBox> vector);
+jint outJava(JNIEnv *pEnv, jobject pJobject, vector<TrackerBox>/*vector<FaceBox>*/ vector);
 
-static unsigned long get_cur_time(void) {
+/*static unsigned long get_cur_time(void) {
     struct timeval tv;
     unsigned long ts;
     gettimeofday(&tv, NULL);
     ts = tv.tv_sec * 1000000 + tv.tv_usec;
     return ts;
-}
+}*/
 
 extern "C" {
-MTCNN *mtcnn;
+//MTCNN *mtcnn;
+DTracker *dtracker;
 JNIEXPORT jint JNICALL
 Java_com_deepcam_detect_natives_FaceDetectNative_init(JNIEnv *env, jobject instance, jstring path_,
                                                       jint thread_num, jint min) {
     const char *path = env->GetStringUTFChars(path_, 0);
-
-    mtcnn = new MTCNN(path);
+    vector<string> data;
+    /*mtcnn = new MTCNN(path);
     mtcnn->SetMinFace(min);
-    mtcnn->SetNumThreads(thread_num);
+    mtcnn->SetNumThreads(thread_num);*/
+    dtracker = new DTracker;
+    int res = dtracker->init((char *)path,min,thread_num);
     env->ReleaseStringUTFChars(path_, path);
-    return 0;
+    return res;
 }
 
 JNIEXPORT jint JNICALL
@@ -46,7 +52,7 @@ Java_com_deepcam_detect_natives_FaceDetectNative_detect(JNIEnv *env, jobject ins
         env->ReleaseByteArrayElements(frame_, frame, 0);
         return -1;
     }
-
+    LOGD("The frame width: %d ,height:%d ，frame so small !");
     if (cols < 40 || rows < 40) {
         LOGD("The frame width: %d ,height:%d ，frame so small !");
         return -2;
@@ -75,35 +81,35 @@ Java_com_deepcam_detect_natives_FaceDetectNative_detect(JNIEnv *env, jobject ins
     end = get_cur_time();
     LOGD("img time %ld ms.\n", (end - start) / 1000);
 
-    imwrite("/sdcard/mtcnn/face.jpg", img);
+//    imwrite("/sdcard/mtcnn/face.jpg", img);
     start = get_cur_time();
-    std::vector<FaceBox> allFaces;
-    mtcnn->detect(img, scale, allFaces);
+//    std::vector<FaceBox> allFaces;
+    vector<TrackerBox> trackerBoxs = dtracker->track(img,scale);
     end = get_cur_time();
     LOGD("detect time %ld ms.\n", (end - start) / 1000);
-    LOGD("face size = %d", allFaces.size());
+    LOGD("face size = %d", trackerBoxs.size());
     env->ReleaseByteArrayElements(frame_, frame, 0);
-    if (allFaces.size() <= 0) {
+    if (trackerBoxs.size() <= 0) {
         return -3;//人脸检测失败
     }
-    return outJava(env, faces, allFaces);
+    return outJava(env, faces, trackerBoxs/*allFaces*/);
 
 }
 JNIEXPORT void JNICALL
 Java_com_deepcam_detect_natives_FaceDetectNative_close(JNIEnv *env, jobject instance) {
-    if (!mtcnn) {
-        delete mtcnn;
+    if (!dtracker) {
+        delete dtracker;
     }
 }
 }
 
-jint outJava(JNIEnv *pEnv, jobject pJobject, vector <FaceBox> faces) {
+jint outJava(JNIEnv *pEnv, jobject pJobject, vector<TrackerBox>/*vector <FaceBox>*/ faces) {
 
     jclass clazzFace = pEnv->FindClass("com/deepcam/detect/natives/FaceDetectBean");
     if (clazzFace == 0) {
         return -4;//找不到 FaceDetectBean
     }
-    jmethodID initFace = pEnv->GetMethodID(clazzFace, "<init>", "(ILandroid/graphics/Rect;)V");
+    jmethodID initFace = pEnv->GetMethodID(clazzFace, "<init>", "(IIIILandroid/graphics/Rect;)V");
     if (initFace == 0) {
 //        pEnv->DeleteGlobalRef(clazzFace);
         return -5;
@@ -133,16 +139,16 @@ jint outJava(JNIEnv *pEnv, jobject pJobject, vector <FaceBox> faces) {
     }
 
     for (int i = 0; i < faces.size(); ++i) {
-        FaceBox box = faces[i];
-        jobject rect = pEnv->NewObject(rectClazz, rectMethod, box.bbox.x, box.bbox.y,
-                                       (box.bbox.x + box.bbox.width),
-                                       (box.bbox.y + box.bbox.height));
+        TrackerBox box = faces[i];
+        jobject rect = pEnv->NewObject(rectClazz, rectMethod, box.tbox.x, box.tbox.y,
+                                       (box.tbox.x + box.tbox.width),
+                                       (box.tbox.y + box.tbox.height));
 //        jobject array = pEnv->NewObject(clazzArr,arrInit);
 
-        int quality = (90 - std::max(abs(box.rot_x), abs(box.rot_y))) / 0.9; //人脸质量计算
-        jobject faceBean = pEnv->NewObject(clazzFace, initFace, quality, rect);
-        for (int j = 0; j < box.lmk.size(); ++j) {
-            Point2d point = box.lmk[j];
+//        int quality = (90 - std::max(abs(box.rot_x), abs(box.rot_y))) / 0.9; //人脸质量计算
+        jobject faceBean = pEnv->NewObject(clazzFace, initFace, box.quality,box.ID,box.frameCount,box.confidence, rect);
+        for (int j = 0; j < box.lmks.size(); ++j) {
+            Point2d point = box.lmks[j];
             pEnv->CallVoidMethod(faceBean, setLandmark, point.x);
             pEnv->CallVoidMethod(faceBean, setLandmark, point.y);
         }
@@ -212,15 +218,16 @@ Java_com_deepcam_detect_natives_FaceDetectNative_detectBitmap(
     unsigned long start = get_cur_time();
     unsigned long end = get_cur_time();
     start = get_cur_time();
-    std::vector<FaceBox> allFaces;
-    mtcnn->detect(bgr, scale, allFaces);
+//    std::vector<FaceBox> allFaces;
+//    mtcnn->detect(bgr, scale, allFaces);
+        vector<TrackerBox> box = dtracker->track(bgr,scale);
     end = get_cur_time();
     LOGD("detect time %ld ms.\n", (end - start) / 1000);
-    LOGD("face size = %d", allFaces.size());
+    LOGD("face size = %d", box.size());
     AndroidBitmap_unlockPixels(env, _bitmap);
 
-    if (allFaces.size() <= 0) {
+    if (box.size() <= 0) {
         return -3;//人脸检测失败
     }
-    return outJava(env, faces, allFaces);
+    return outJava(env, faces, box);
 }

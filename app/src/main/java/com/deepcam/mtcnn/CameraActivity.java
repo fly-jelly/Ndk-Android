@@ -92,7 +92,7 @@ public class CameraActivity extends Activity implements View.OnClickListener {
         mRs = RenderScript.create(this);
         mYuvToRgbIntrinsic = ScriptIntrinsicYuvToRGB.create(mRs, Element.U8_4(mRs));
         faceDetectNative = FaceDetectNative.instance();
-        faceDetectNative.init("/sdcard/mtcnn/models",3,40);
+        faceDetectNative.init("/sdcard/mtcnn/models",2,40);
         openFrontCamera();
         mMainHandler = new MainHandler();
     }
@@ -230,8 +230,8 @@ public class CameraActivity extends Activity implements View.OnClickListener {
             mOut.copyTo(bmpout);
             bmpout = rotateBitmap(bmpout, 90);
             mPreviewRect.setImageBitmap(bmpout);
-            setFaceImageInBitmap(bmpout);
-//            setFaceImageInBitmap(data,mPreviewWidth, mPreviewHeight);
+//            setFaceImageInBitmap(bmpout);
+            setFaceImageInBitmap(data,mPreviewWidth, mPreviewHeight);
         }
     };
 
