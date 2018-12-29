@@ -59,6 +59,8 @@ Java_com_deepcam_detect_natives_FaceDetectNative_detect(JNIEnv *env, jobject ins
     }
 
     unsigned long start = get_cur_time();
+
+//    cv::Mat yuvMat(rows, cols, CV_8UC4, (uchar *) frame);
     cv::Mat yuvMat(rows + rows / 2, cols, CV_8UC1, (uchar *) frame);
     unsigned long end = get_cur_time();
     LOGD("yuv time %ld ms.\n", (end - start) / 1000);
